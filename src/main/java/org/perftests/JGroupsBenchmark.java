@@ -1,80 +1,98 @@
 
 package org.perftests;
 
-import org.jgroups.JChannel;
-import org.jgroups.ReceiverAdapter;
-import org.jgroups.View;
-import org.jgroups.blocks.MethodCall;
-import org.jgroups.blocks.RequestOptions;
-import org.jgroups.blocks.RpcDispatcher;
-import org.jgroups.util.RspList;
-import org.jgroups.util.Util;
+import org.jgroups.Header;
+import org.jgroups.conf.ClassConfigurator;
+import org.jgroups.protocols.pbcast.NakAckHeader2;
 import org.openjdk.jmh.annotations.*;
 
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
-@Measurement(timeUnit=TimeUnit.SECONDS,iterations=10)
-// @OutputTimeUnit(TimeUnit.MICROSECONDS)
+@BenchmarkMode({Mode.AverageTime})
+@Warmup(iterations=5)
+@Measurement(timeUnit=TimeUnit.NANOSECONDS,iterations=5)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@Fork(value=1)
 @Threads(25)
-public class JGroupsBenchmark extends ReceiverAdapter {
-    protected JChannel ch;
-    protected RpcDispatcher disp;
-    protected static final String cfg="/home/bela/fast.xml";
-    protected int cnt=1;
-    protected static final Method meth;
+public class JGroupsBenchmark {
+    protected static final short id=93;
+    protected long total;
+    protected static final Class<?> clazz;
+    protected static final Constructor<?> constructor;
+    protected static final MethodType mt;
+    protected static final MethodHandle mh;
+    protected static final MethodHandles.Lookup lookup=MethodHandles.publicLookup();
+    protected static final MethodHandle handle;
 
 
     static {
         try {
-            meth=JGroupsBenchmark.class.getDeclaredMethod("getCount");
+            clazz=ClassConfigurator.get(id);
+            constructor=clazz.getConstructor();
+            mt=MethodType.methodType(void.class);
+            mh=lookup.findConstructor(clazz, mt);
+            MethodType tmp_type=mh.type().changeReturnType(Header.class);
+            handle=mh.asType(tmp_type);
         }
-        catch(NoSuchMethodException e) {
-            throw new RuntimeException(e);
+        catch(Throwable t) {
+            throw new RuntimeException(t);
         }
-    }
-
-
-    public int getCount() {
-        return cnt++;
     }
 
     @Setup
     public void setup() throws Exception {
-        ch=new JChannel(cfg);
-        disp=new RpcDispatcher(ch, null, this, this);
-        disp.setMethodLookup(id -> meth);
-        ch.connect("jmh-demo");
+        System.out.println("-- setup()");
+
     }
 
     @TearDown
     public void destroy() {
-        Util.close(ch);
+        System.out.println("-- destroy()");
+    }
+
+
+    @Benchmark
+    public void createWithReflection() throws Exception {
+        Header hdr=(Header)clazz.newInstance();
+        total+=hdr.size();
     }
 
     @Benchmark
-    @BenchmarkMode({Mode.Throughput}) @OutputTimeUnit(TimeUnit.SECONDS)
-    @Fork(value=1)
-    public void testMethod() throws Exception {
-        MethodCall call=new MethodCall((short)1);
-        RspList<Integer> rsps=disp.callRemoteMethods(null, call, RequestOptions.SYNC());
-        // System.out.printf("%d rsps: %s\n", rsps.size(), rsps);
-        if(rsps.size() < 0)
-            throw new IllegalStateException("should have gotten at least 1 response");
+    public void  createWithConstructor() throws Exception {
+        Header hdr=(Header)constructor.newInstance();
+        total+=hdr.size();
+    }
+
+    @Benchmark
+    public void createWithMethodHandle() throws Throwable {
+        Header hdr=(Header)mh.invoke();
+        total+=hdr.size();
+    }
+
+    @Benchmark
+    public void createWithMethodHandleInvokeExact() throws Throwable {
+        Header hdr=(NakAckHeader2)mh.invokeExact();
+        total+=hdr.size();
+    }
+
+    @Benchmark
+    public void createWithMethodHandleInvokeExactAsType() throws Throwable {
+        Header hdr=(Header)handle.invokeExact();
+        total+=hdr.size();
     }
 
 
-    public void viewAccepted(View view) {
-        System.out.printf("-- view: %s\n", view);
+    @Benchmark
+    public void createNormal() {
+        Header hdr=new NakAckHeader2();
+        total+=hdr.size();
     }
 
-    public static void main(String[] args) throws Exception {
-        JGroupsBenchmark b=new JGroupsBenchmark();
-        b.setup();
-        System.out.println("-- started as server");
-        Util.keyPress("enter to terminate");
-        b.destroy();
-    }
+
 
 }
