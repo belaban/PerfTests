@@ -2,7 +2,6 @@
 package org.perftests;
 
 import org.jgroups.Header;
-import org.jgroups.conf.ClassConfigurator;
 import org.jgroups.protocols.pbcast.NakAckHeader2;
 import org.openjdk.jmh.annotations.*;
 
@@ -36,7 +35,7 @@ public class JGroupsBenchmark {
 
     static {
         try {
-            clazz=ClassConfigurator.get(id);
+            clazz=NakAckHeader2.class;
             constructor=clazz.getConstructor();
             mt=MethodType.methodType(void.class);
             mh=lookup.findConstructor(clazz, mt);
@@ -53,13 +52,10 @@ public class JGroupsBenchmark {
 
     @Setup
     public void setup() throws Exception {
-        System.out.println("-- setup()");
-
     }
 
     @TearDown
     public void destroy() {
-        System.out.println("-- destroy()");
     }
 
 
