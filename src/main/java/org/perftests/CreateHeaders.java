@@ -3,6 +3,8 @@ package org.perftests;
 
 import org.jgroups.Header;
 import org.jgroups.conf.ClassConfigurator;
+import org.jgroups.protocols.pbcast.GMS;
+import org.jgroups.protocols.pbcast.NakAckHeader2;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -16,8 +18,9 @@ import java.util.concurrent.TimeUnit;
 @Fork(value=1)
 @Threads(25)
 public class CreateHeaders {
-    protected static final short id=93;
-    protected static final short uuid_id=68;
+    protected static final short id=ClassConfigurator.getMagicNumber(NakAckHeader2.class);
+    protected static final short uuid_id=ClassConfigurator.getMagicNumber(org.jgroups.util.UUID.class);
+    protected static final short gms_id=ClassConfigurator.getMagicNumber(GMS.GmsHeader.class);
     protected long total;
 
 
@@ -43,6 +46,12 @@ public class CreateHeaders {
     public void createUUID(Blackhole bh) throws Throwable {
         Object obj=ClassConfigurator.create(uuid_id);
         bh.consume(obj);
+    }
+
+    @Benchmark
+    public void createGmsHeader() throws Throwable {
+        Header hdr=ClassConfigurator.create(gms_id);
+        total+=hdr.size();
     }
 
 
